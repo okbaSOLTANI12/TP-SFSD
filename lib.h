@@ -1,4 +1,3 @@
-
 #ifndef LIB_H
 #define LIB_H
 
@@ -10,6 +9,7 @@
 #define MAX 40
 #define MAX_INDEX 5000
 #define MAX_NAMES 5000
+#define INDEX_BLOCK_SIZE 40
 
 /********************* STRUCTURES *****************************/
 
@@ -35,6 +35,7 @@ typedef struct
 
 typedef TStudent TArray[MAX];
 
+/* LNOF Structure - for STUDENTS_ESI.BIN */
 typedef struct
 {
     TArray records;
@@ -55,6 +56,21 @@ typedef struct
     THeader *header;
 } TLNOF;
 
+/* LOF Structure - for STUDENTS_CP.BIN */
+typedef struct
+{
+    TArray records;
+    int nb_records;
+    int next_block;
+} TLOFBlock;
+
+typedef struct
+{
+    FILE *file;
+    THeader *header;
+} TLOF;
+
+/* Index Structures */
 typedef struct
 {
     int key;
@@ -67,6 +83,15 @@ typedef struct
     TIndexEntry entries[MAX_INDEX];
     int count;
 } TIndexTable;
+
+typedef TIndexEntry TIndexBlock[INDEX_BLOCK_SIZE];
+
+typedef struct
+{
+    TIndexBlock entries;
+    int nb_entries;
+    int next_block;
+} TTOFIndexBlock;
 
 typedef struct
 {
@@ -90,8 +115,8 @@ extern TNameEntry NamesArray[MAX_NAMES];
 extern int NamesCount;
 extern int UsedIDs[9001];
 
-extern char *Wilaya_List[59];
-extern char *Speciality_List[4];
+extern char *WilayaList[59];
+extern char *SpecialityList[4];
 
 /********************* FUNCTION DECLARATIONS *****************************/
 
@@ -112,7 +137,7 @@ void PrintWilayaList();
 // Names
 void LoadNames();
 
-// File Operations
+// LNOF File Operations (for STUDENTS_ESI.BIN)
 void OpenFile(TLNOF *file, char filename[30], const char mode);
 void CloseFile(TLNOF *file);
 void WriteBlock(TLNOF *file, int block_index, TBlock *buffer);
@@ -120,6 +145,15 @@ void ReadBlock(TLNOF *file, int block_index, TBlock *buffer);
 void SetHeader(TLNOF *file, int field_num, int value);
 int GetHeader(TLNOF *file, int field_num);
 void AllocateBlock(TBlock *buffer);
+
+// LOF File Operations (for STUDENTS_CP.BIN)
+void OpenLOFFile(TLOF *file, char filename[30], const char mode);
+void CloseLOFFile(TLOF *file);
+void WriteLOFBlock(TLOF *file, int block_index, TLOFBlock *buffer);
+void ReadLOFBlock(TLOF *file, int block_index, TLOFBlock *buffer);
+void SetLOFHeader(TLOF *file, int field_num, int value);
+int GetLOFHeader(TLOF *file, int field_num);
+void AllocateLOFBlock(TLOFBlock *buffer);
 
 // Index Operations
 void InitIndex();
@@ -152,10 +186,10 @@ void QueryYearOfStudy();
 // Advanced
 void CreateCPFile();
 
-// Display
-void DisplayFileHeader(char filename[30]);
-void DisplaySpecificBlock(char filename[30]);
-void DisplayAllRecords(char filename[30]);
+// Display Functions (work for both LNOF and LOF)
+void DisplayFileHeader();
+void DisplaySpecificBlock();
+void DisplayAllRecords();
 
 // Menu
 void ShowMainMenu();

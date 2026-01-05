@@ -1,22 +1,18 @@
-
 #include "lib.h"
 
-/********************* GLOBAL VARIABLES DEFINITION *****************************/
-
+/* GLOBAL VARIABLES DEFINITION */
 TIndexTable GlobalIndex;
 int N_IO_READ = 0;
 int N_IO_WRITE = 0;
-
-char MainFileName[]  = "STUDENTS_ESI.BIN";
+char MainFileName[] = "STUDENTS_ESI.BIN";
 char IndexFileName[] = "StudentID_INDEX.idx";
-char CPFileName[]    = "STUDENTS_CP.BIN";
+char CPFileName[] = "STUDENTS_CP.BIN";
 char NamesFileName[64] = "NAMES.txt";
-
 TNameEntry NamesArray[MAX_NAMES];
 int NamesCount = 0;
 int UsedIDs[9001];
 
-char *Wilaya_List[59] = {
+char *WilayaList[59] = {
     "", "Adrar","Chlef","Laghouat","Oum El Bouaghi","Batna",
     "Bejaia","Biskra","Bechar","Blida","Bouira",
     "Tamanrasset","Tebessa","Tlemcen","Tiaret","Tizi Ouzou",
@@ -31,10 +27,9 @@ char *Wilaya_List[59] = {
     "In Salah","In Guezzam","Touggourt","Djanet","El Mghair","El Menia"
 };
 
-char *Speciality_List[4] = {"SIT","SIQ","SIL","SID"};
+char *SpecialityList[4] = {"SIT","SIQ","SIL","SID"};
 
-/********************** UTILITIES *****************************/
-
+/* UTILITIES */
 void ClearScreen()
 {
     #ifdef _WIN32
@@ -62,7 +57,7 @@ void ShowHeader()
 {
     ClearScreen();
     PrintLine(90);
-    printf("                        ESI STUDENTS MANAGEMENT SYSTEM - LNOF\n");
+    printf("                        ESI STUDENTS MANAGEMENT SYSTEM - LNOF/LOF\n");
     PrintLine(90);
     printf("  Lab: File Structures and Data Systems (FSDS)\n");
     printf("  Presented by: SOLTANI Okba & ZERARI Tarek\n");
@@ -118,12 +113,12 @@ void MapYearStudy(int code, char ys[4], char spec[40])
         case 4:
             strcpy(ys,"2CS");
             spec_code = rand()%4;
-            strcpy(spec,Speciality_List[spec_code]);
+            strcpy(spec,SpecialityList[spec_code]);
             break;
         case 5:
             strcpy(ys,"3CS");
             spec_code = rand()%4;
-            strcpy(spec,Speciality_List[spec_code]);
+            strcpy(spec,SpecialityList[spec_code]);
             break;
         default:
             strcpy(ys,"");
@@ -164,12 +159,11 @@ void PrintWilayaList()
     printf("\n  ALGERIAN WILAYAS:\n");
     PrintLine(70);
     for(i=1; i<=29; i++)
-        printf("  %2d.%-20s  %2d.%-20s\n",i,Wilaya_List[i],i+29,(i+29<=58)?Wilaya_List[i+29]:"");
+        printf("  %2d.%-20s  %2d.%-20s\n",i,WilayaList[i],i+29,(i+29<=58)?WilayaList[i+29]:"");
     PrintLine(70);
 }
 
-/********************** LOAD NAMES *****************************/
-
+/* LOAD NAMES */
 void LoadNames()
 {
     FILE *f;
@@ -247,7 +241,7 @@ void LoadNames()
     printf("  [+] Successfully loaded %d names from %s\n",NamesCount,NamesFileName);
 }
 
-/*********************** FILE OPERATIONS *****************************/
+/* ============= LNOF FILE OPERATIONS (FOR STUDENTS_ESI.BIN) ============= */
 
 void OpenFile(TLNOF *file, char filename[30], const char mode)
 {
@@ -338,7 +332,98 @@ void AllocateBlock(TBlock *buffer)
         buffer->records[i].deleted = 1;
 }
 
-/***************** INDEX OPERATIONS ***************************/
+/* ============= LOF FILE OPERATIONS (FOR STUDENTS_CP.BIN) ============= */
+
+void OpenLOFFile(TLOF *file, char filename[30], const char mode)
+{
+    file->header = (THeader*)malloc(sizeof(THeader));
+    if((mode=='n') || (mode=='N'))
+    {
+        file->file = fopen(filename,"wb+");
+        if(!file->file)
+        {
+            free(file->header);
+            file->header = NULL;
+            return;
+        }
+        file->header->first_block = 0;
+        file->header->total_records = 0;
+        file->header->last_block = 0;
+        fwrite(file->header, sizeof(THeader), 1, file->file);
+    }
+    else if((mode=='a') || (mode=='A'))
+    {
+        file->file = fopen(filename,"rb+");
+        if(file->file == NULL)
+        {
+            printf("  [!] File %s does not exist.\n",filename);
+        }
+        else
+        {
+            fread(file->header, sizeof(THeader), 1, file->file);
+        }
+    }
+}
+
+void CloseLOFFile(TLOF *file)
+{
+    if(file->file != NULL)
+    {
+        rewind(file->file);
+        fwrite(file->header, sizeof(THeader), 1, file->file);
+        fclose(file->file);
+    }
+    free(file->header);
+}
+
+void WriteLOFBlock(TLOF *file, int block_index, TLOFBlock *buffer)
+{
+    rewind(file->file);
+    fseek(file->file, sizeof(THeader) + (block_index-1)*sizeof(TLOFBlock), SEEK_SET);
+    fwrite(buffer, sizeof(TLOFBlock), 1, file->file);
+    N_IO_WRITE++;
+}
+
+void ReadLOFBlock(TLOF *file, int block_index, TLOFBlock *buffer)
+{
+    rewind(file->file);
+    fseek(file->file, sizeof(THeader) + (block_index-1)*sizeof(TLOFBlock), SEEK_SET);
+    fread(buffer, sizeof(TLOFBlock), 1, file->file);
+    N_IO_READ++;
+}
+
+void SetLOFHeader(TLOF *file, int field_num, int value)
+{
+    switch(field_num)
+    {
+        case 1: file->header->first_block = value; break;
+        case 2: file->header->total_records = value; break;
+        case 3: file->header->last_block = value; break;
+    }
+}
+
+int GetLOFHeader(TLOF *file, int field_num)
+{
+    int val = 0;
+    switch(field_num)
+    {
+        case 1: val = file->header->first_block; break;
+        case 2: val = file->header->total_records; break;
+        case 3: val = file->header->last_block; break;
+    }
+    return val;
+}
+
+void AllocateLOFBlock(TLOFBlock *buffer)
+{
+    int i;
+    buffer->next_block = 0;
+    buffer->nb_records = 0;
+    for(i=0; i<MAX; i++)
+        buffer->records[i].deleted = 1;
+}
+
+/* ============= INDEX OPERATIONS ============= */
 
 void InitIndex()
 {
@@ -412,7 +497,9 @@ void UpdateIndexAfterDeletion(int block_num, int deleted_pos)
 void SaveIndexToFile()
 {
     FILE *idx;
-    int C31 = 0;
+    TTOFIndexBlock tof_block;
+    int total_blocks, current_block_num, entries_written, entries_remaining;
+    int i, j, entries_in_block;
 
     idx = fopen(IndexFileName,"wb");
     if(idx == NULL)
@@ -420,20 +507,67 @@ void SaveIndexToFile()
         printf("  [!] Error saving index.\n");
         return;
     }
+
+    if(GlobalIndex.count == 0)
+    {
+        total_blocks = 0;
+        fwrite(&GlobalIndex.count, sizeof(int), 1, idx);
+        fwrite(&total_blocks, sizeof(int), 1, idx);
+        fclose(idx);
+        printf("  [+] Empty index saved successfully\n");
+        printf("  [COST] C31 = 0 write operations (empty index)\n");
+        return;
+    }
+
+    total_blocks = (GlobalIndex.count + INDEX_BLOCK_SIZE - 1) / INDEX_BLOCK_SIZE;
+
     fwrite(&GlobalIndex.count, sizeof(int), 1, idx);
-    C31++;
-    fwrite(GlobalIndex.entries, sizeof(TIndexEntry), GlobalIndex.count, idx);
-    C31++;
+    fwrite(&total_blocks, sizeof(int), 1, idx);
+
+    entries_written = 0;
+    current_block_num = 1;
+
+    while(entries_written < GlobalIndex.count)
+    {
+        entries_remaining = GlobalIndex.count - entries_written;
+        entries_in_block = (entries_remaining > INDEX_BLOCK_SIZE) ? INDEX_BLOCK_SIZE : entries_remaining;
+
+        tof_block.nb_entries = entries_in_block;
+        tof_block.next_block = (entries_remaining > INDEX_BLOCK_SIZE) ? (current_block_num + 1) : 0;
+
+        for(i=0; i<entries_in_block; i++)
+        {
+            tof_block.entries[i] = GlobalIndex.entries[entries_written + i];
+        }
+
+        for(j=i; j<INDEX_BLOCK_SIZE; j++)
+        {
+            tof_block.entries[j].key = 0;
+            tof_block.entries[j].block_num = 0;
+            tof_block.entries[j].position = 0;
+        }
+
+        fwrite(&tof_block, sizeof(TTOFIndexBlock), 1, idx);
+
+        entries_written += entries_in_block;
+        current_block_num++;
+    }
+
     fclose(idx);
 
     printf("  [+] Index saved successfully\n");
-    printf("  [COST] C31 = %d write operations\n", C31);
+    printf("      Total Entries : %d\n", GlobalIndex.count);
+    printf("      Total Blocks  : %d\n", total_blocks);
+    printf("      Entries/Block : %d\n", INDEX_BLOCK_SIZE);
+    printf("  [COST] C31 = %d write operations\n", total_blocks);
 }
 
 void LoadIndexFromFile()
 {
     FILE *idx;
-    int C32 = 0;
+    TTOFIndexBlock tof_block;
+    int total_blocks, current_block;
+    int entries_read, i;
 
     idx = fopen(IndexFileName,"rb");
     if(idx == NULL)
@@ -442,14 +576,42 @@ void LoadIndexFromFile()
         InitIndex();
         return;
     }
+
     fread(&GlobalIndex.count, sizeof(int), 1, idx);
-    C32++;
-    fread(GlobalIndex.entries, sizeof(TIndexEntry), GlobalIndex.count, idx);
-    C32++;
+    fread(&total_blocks, sizeof(int), 1, idx);
+
+    if(GlobalIndex.count == 0 || total_blocks == 0)
+    {
+        fclose(idx);
+        InitIndex();
+        printf("  [+] Empty index loaded\n");
+        printf("  [COST] C32 = 0 read operations (empty index)\n");
+        return;
+    }
+
+    entries_read = 0;
+    current_block = 1;
+
+    while(current_block <= total_blocks && entries_read < GlobalIndex.count)
+    {
+        fread(&tof_block, sizeof(TTOFIndexBlock), 1, idx);
+
+        for(i=0; i<tof_block.nb_entries && entries_read < GlobalIndex.count; i++)
+        {
+            GlobalIndex.entries[entries_read] = tof_block.entries[i];
+            entries_read++;
+        }
+
+        current_block++;
+    }
+
     fclose(idx);
 
     printf("  [+] Index loaded successfully\n");
-    printf("  [COST] C32 = %d read operations\n", C32);
+    printf("      Total Entries : %d\n", GlobalIndex.count);
+    printf("      Total Blocks  : %d\n", total_blocks);
+    printf("      Entries/Block : %d\n", INDEX_BLOCK_SIZE);
+    printf("  [COST] C32 = %d read operations\n", total_blocks);
 }
 
 void SearchFreePosition(TLNOF *file, int *free_pos, int *block_num, int *found)
@@ -480,7 +642,7 @@ void SearchFreePosition(TLNOF *file, int *free_pos, int *block_num, int *found)
     }
 }
 
-/********************** RANDOM STUDENT *****************************/
+/* ============= STUDENT OPERATIONS ============= */
 
 int GenerateUniqueID()
 {
@@ -511,7 +673,7 @@ void GenerateRandomStudent(TStudent *S)
     S->Day_Birth = 1 + rand()%DaysInMonth(S->Month_Birth, S->Year_Birth);
 
     S->Wilaya_Code = 1 + rand()%58;
-    strcpy(S->Wilaya_Name, Wilaya_List[S->Wilaya_Code]);
+    strcpy(S->Wilaya_Name, WilayaList[S->Wilaya_Code]);
 
     S->Blood_Type_Code = 1 + rand()%8;
     MapBloodType(S->Blood_Type_Code, S->Blood_Type);
@@ -541,7 +703,7 @@ void DisplayStudent(TStudent *S)
     PrintLine(80);
 }
 
-/********************** MAIN OPERATIONS *****************************/
+/* ============= MAIN OPERATIONS ============= */
 
 void CreateAndInitialLoad()
 {
@@ -559,12 +721,12 @@ void CreateAndInitialLoad()
         return;
     }
 
-    printf("  CREATE AND INITIAL LOAD\n");
+    printf("  CREATE AND INITIAL LOAD (LNOF)\n");
     PrintLine(80);
     printf("\n  Number of records to create: ");
     scanf("%d", &N);
 
-    printf("\n  [*] Creating file with %d records...\n", N);
+    printf("\n  [*] Creating LNOF file with %d records...\n", N);
 
     memset(UsedIDs, 0, sizeof(UsedIDs));
     N_IO_READ = 0;
@@ -590,10 +752,10 @@ void CreateAndInitialLoad()
     {
         if(position > MAX)
         {
+            buffer.next_block = block_count + 1;
             WriteBlock(&file, block_count, &buffer);
             block_count++;
             AllocateBlock(&buffer);
-            buffer.next_block = 0;
             position = 1;
         }
 
@@ -608,6 +770,7 @@ void CreateAndInitialLoad()
             printf("  Progress: %d/%d records\n", i+1, N);
     }
 
+    buffer.next_block = 0;
     WriteBlock(&file, block_count, &buffer);
     SetHeader(&file, 2, record_count);
     SetHeader(&file, 3, block_count);
@@ -617,7 +780,7 @@ void CreateAndInitialLoad()
 
     printf("\n");
     PrintLine(80);
-    printf("  [+] File created successfully!\n");
+    printf("  [+] LNOF file created successfully!\n");
     printf("      Records: %d | Blocks: %d (numbered 1-%d)\n", record_count, block_count, block_count);
     printf("\n  [COST BREAKDOWN]\n");
     printf("      Read blocks  : %d\n", N_IO_READ);
@@ -737,7 +900,7 @@ void InsertStudent()
     scanf("%d", &student.Wilaya_Code);
     if(student.Wilaya_Code < 1 || student.Wilaya_Code > 58)
         student.Wilaya_Code = 16;
-    strcpy(student.Wilaya_Name, Wilaya_List[student.Wilaya_Code]);
+    strcpy(student.Wilaya_Name, WilayaList[student.Wilaya_Code]);
 
     printf("\n  Gender: 1.Male  2.Female\n  Choice: ");
     scanf("%d", &student.Gender);
@@ -762,7 +925,7 @@ void InsertStudent()
         printf("\n  Speciality: 1.SIT  2.SIQ  3.SIL  4.SID\n  Choice: ");
         scanf("%d", &spec_choice);
         if(spec_choice >= 1 && spec_choice <= 4)
-            strcpy(student.Speciality, Speciality_List[spec_choice-1]);
+            strcpy(student.Speciality, SpecialityList[spec_choice-1]);
         else
             strcpy(student.Speciality, "SIT");
     }
@@ -1000,17 +1163,17 @@ void ModifyFirstName()
     Pause();
 }
 
-/********************** QUERIES *****************************/
+/* ============= QUERIES ============= */
 
 void QueryBloodTypeResident()
 {
     ShowHeader();
-    int blood_code, i, j, count;
+    int blood_code, j, count;
     TLNOF file;
     TBlock buffer;
     char blood_type[4];
     char fullname[50];
-    int total_blocks;
+    int current_block;
 
     printf("  QUERY: BLOOD TYPE & RESIDENT UC\n");
     PrintLine(80);
@@ -1030,17 +1193,17 @@ void QueryBloodTypeResident()
         return;
     }
 
-    total_blocks = GetHeader(&file, 3);
+    current_block = GetHeader(&file, 1);
 
-    printf("\n  [*] Searching through %d blocks...\n\n", total_blocks);
+    printf("\n  [*] Searching through ALL blocks...\n\n");
     PrintLine(130);
     printf("%-6s | %-30s | %-10s | %-16s | %-6s | %-4s | %-22s\n",
            "ID","Name","Birth","Wilaya","Gender","Year","Speciality");
     PrintLine(130);
 
-    for(i = 1; i <= total_blocks; i++)
+    while(current_block != 0)
     {
-        ReadBlock(&file, i, &buffer);
+        ReadBlock(&file, current_block, &buffer);
 
         for(j=0; j<buffer.nb_records; j++)
         {
@@ -1059,6 +1222,7 @@ void QueryBloodTypeResident()
                 count++;
             }
         }
+        current_block = buffer.next_block;
     }
 
     CloseFile(&file);
@@ -1077,11 +1241,11 @@ void QuerySpeciality()
 {
     ShowHeader();
     char speciality_keyword[40];
-    int i, j, count;
+    int j, count;
     TLNOF file;
     TBlock buffer;
     char fullname[50];
-    int total_blocks;
+    int current_block;
 
     printf("  QUERY: BY SPECIALITY\n");
     PrintLine(80);
@@ -1100,17 +1264,17 @@ void QuerySpeciality()
         return;
     }
 
-    total_blocks = GetHeader(&file, 3);
+    current_block = GetHeader(&file, 1);
 
-    printf("\n  [*] Searching through %d blocks...\n\n", total_blocks);
+    printf("\n  [*] Searching through ALL blocks...\n\n");
     PrintLine(130);
     printf("%-6s | %-30s | %-10s | %-6s | %-4s | %-4s | %-8s | %-22s\n",
            "ID","Name","Birth","Gender","Blood","Year","Resident","Speciality");
     PrintLine(130);
 
-    for(i = 1; i <= total_blocks; i++)
+    while(current_block != 0)
     {
-        ReadBlock(&file, i, &buffer);
+        ReadBlock(&file, current_block, &buffer);
 
         for(j=0; j<buffer.nb_records; j++)
         {
@@ -1128,6 +1292,7 @@ void QuerySpeciality()
                 count++;
             }
         }
+        current_block = buffer.next_block;
     }
 
     CloseFile(&file);
@@ -1145,12 +1310,12 @@ void QuerySpeciality()
 void QueryUnder20YearsOld()
 {
     ShowHeader();
-    int year1, year2, i, j, count;
+    int year1, year2, j, count;
     int current_year = 2026;
     TLNOF file;
     TBlock buffer;
     char fullname[50];
-    int total_blocks;
+    int current_block;
 
     printf("  QUERY: UNDER 20 YEARS OLD\n");
     PrintLine(80);
@@ -1169,17 +1334,17 @@ void QueryUnder20YearsOld()
         return;
     }
 
-    total_blocks = GetHeader(&file, 3);
+    current_block = GetHeader(&file, 1);
 
-    printf("\n  [*] Searching through %d blocks...\n\n", total_blocks);
+    printf("\n  [*] Searching through ALL blocks...\n\n");
     PrintLine(130);
     printf("%-6s | %-30s | %-10s | %-3s | %-6s | %-4s | %-4s | %-16s\n",
            "ID","Name","Birth","Age","Gender","Blood","Year","Wilaya");
     PrintLine(130);
 
-    for(i = 1; i <= total_blocks; i++)
+    while(current_block != 0)
     {
-        ReadBlock(&file, i, &buffer);
+        ReadBlock(&file, current_block, &buffer);
 
         for(j=0; j<buffer.nb_records; j++)
         {
@@ -1200,6 +1365,7 @@ void QueryUnder20YearsOld()
                 }
             }
         }
+        current_block = buffer.next_block;
     }
 
     CloseFile(&file);
@@ -1217,12 +1383,12 @@ void QueryUnder20YearsOld()
 void QueryYearOfStudy()
 {
     ShowHeader();
-    int year_code, i, j, count;
+    int year_code, j, count;
     TLNOF file;
     TBlock buffer;
     char year_study[4], speciality[40];
     char fullname[50];
-    int total_blocks;
+    int current_block;
 
     printf("  QUERY: BY YEAR OF STUDY\n");
     PrintLine(80);
@@ -1242,17 +1408,17 @@ void QueryYearOfStudy()
         return;
     }
 
-    total_blocks = GetHeader(&file, 3);
+    current_block = GetHeader(&file, 1);
 
-    printf("\n  [*] Searching through %d blocks for %s students...\n\n", total_blocks, year_study);
+    printf("\n  [*] Searching through ALL blocks for %s students...\n\n", year_study);
     PrintLine(130);
     printf("%-6s | %-30s | %-10s | %-6s | %-4s | %-8s | %-22s\n",
            "ID","Name","Birth","Gender","Blood","Resident","Speciality");
     PrintLine(130);
 
-    for(i = 1; i <= total_blocks; i++)
+    while(current_block != 0)
     {
-        ReadBlock(&file, i, &buffer);
+        ReadBlock(&file, current_block, &buffer);
 
         for(j=0; j<buffer.nb_records; j++)
         {
@@ -1269,6 +1435,7 @@ void QueryYearOfStudy()
                 count++;
             }
         }
+        current_block = buffer.next_block;
     }
 
     CloseFile(&file);
@@ -1283,17 +1450,22 @@ void QueryYearOfStudy()
     Pause();
 }
 
-/********************** ADVANCED OPERATIONS *****************************/
+/* ============= CREATE CP LOF FILE ============= */
 
 void CreateCPFile()
 {
     ShowHeader();
-    TLNOF source_file, destination_file;
-    TBlock source_buffer, dest_buffer;
-    int i, j, dest_block_count, dest_record_count, position;
+    TLNOF source_file;
+    TLOF destination_file;
+    TBlock source_buffer;
+    TLOFBlock dest_buffer;
+    TStudent cp_students[10000];
+    int i, j, k, cp_count, dest_block_count, position;
+    int current_block;
+    int target_records_per_block;
     float load_factor;
 
-    printf("  CREATE CP FILE (1CP + 2CP)\n");
+    printf("  CREATE CP LOF FILE (1CP + 2CP) with 75%% Load Factor\n");
     PrintLine(80);
 
     N_IO_READ = 0;
@@ -1307,28 +1479,14 @@ void CreateCPFile()
         return;
     }
 
-    OpenFile(&destination_file, CPFileName, 'n');
-    if(destination_file.file == NULL)
+    printf("\n  [*] Step 1: Extracting 1CP and 2CP students...\n");
+
+    cp_count = 0;
+    current_block = GetHeader(&source_file, 1);
+
+    while(current_block != 0)
     {
-        free(destination_file.header);
-        CloseFile(&source_file);
-        Pause();
-        return;
-    }
-
-    AllocateBlock(&dest_buffer);
-    dest_block_count = 1;
-    dest_record_count = 0;
-    position = 1;
-    SetHeader(&destination_file, 1, 1);
-    SetHeader(&destination_file, 3, 1);
-
-    printf("\n  [*] Extracting 1CP and 2CP students...\n");
-
-    i = GetHeader(&source_file, 1);
-    while(i != 0)
-    {
-        ReadBlock(&source_file, i, &source_buffer);
+        ReadBlock(&source_file, current_block, &source_buffer);
 
         for(j=0; j<source_buffer.nb_records; j++)
         {
@@ -1336,193 +1494,497 @@ void CreateCPFile()
                (source_buffer.records[j].Year_Study_Code == 1 ||
                 source_buffer.records[j].Year_Study_Code == 2))
             {
-                if(position > MAX)
-                {
-                    WriteBlock(&destination_file, dest_block_count, &dest_buffer);
-                    dest_block_count++;
-                    AllocateBlock(&dest_buffer);
-                    position = 1;
-                }
-                dest_buffer.records[position-1] = source_buffer.records[j];
-                dest_buffer.nb_records++;
-                position++;
-                dest_record_count++;
+                cp_students[cp_count] = source_buffer.records[j];
+                cp_count++;
             }
         }
-        i = source_buffer.next_block;
+
+        current_block = source_buffer.next_block;
     }
 
-    WriteBlock(&destination_file, dest_block_count, &dest_buffer);
-    SetHeader(&destination_file, 2, dest_record_count);
-    SetHeader(&destination_file, 3, dest_block_count);
-    SetHeader(&destination_file, 1, 1);
-
     CloseFile(&source_file);
-    CloseFile(&destination_file);
 
-    load_factor = (float)dest_record_count / (dest_block_count*MAX) * 100.0f;
+    printf("      Found: %d CP students\n", cp_count);
 
-    printf("\n  [+] CP file created successfully!\n");
-    printf("      Records: %d | Blocks: %d (numbered 1-%d) | Load: %.2f%%\n",
-           dest_record_count, dest_block_count, dest_block_count, load_factor);
+    if(cp_count == 0)
+    {
+        printf("  [!] No CP students found!\n");
+        Pause();
+        return;
+    }
+
+    printf("\n  [*] Step 2: Sorting by Student ID (LOF requirement)...\n");
+
+    for(i = 0; i < cp_count - 1; i++)
+    {
+        for(j = i + 1; j < cp_count; j++)
+        {
+            if(cp_students[i].Student_ID > cp_students[j].Student_ID)
+            {
+                TStudent temp = cp_students[i];
+                cp_students[i] = cp_students[j];
+                cp_students[j] = temp;
+            }
+        }
+        if((i+1) % 100 == 0)
+            printf("      Sorting progress: %d/%d\n", i+1, cp_count);
+    }
+
+    printf("      Sorted successfully!\n");
+
+    printf("\n  [*] Step 3: Creating LOF file with 75%% load factor...\n");
+
+    OpenLOFFile(&destination_file, CPFileName, 'n');
+    if(destination_file.file == NULL)
+    {
+        free(destination_file.header);
+        Pause();
+        return;
+    }
+
+    target_records_per_block = (int)(MAX * 0.75);
+
+    AllocateLOFBlock(&dest_buffer);
+    dest_block_count = 1;
+    position = 1;
+    SetLOFHeader(&destination_file, 1, 1);
+    SetLOFHeader(&destination_file, 3, 1);
+
+    printf("      Target: %d records per block (75%% of %d)\n\n", target_records_per_block, MAX);
+
+    for(k = 0; k < cp_count; k++)
+    {
+        if(dest_buffer.nb_records >= target_records_per_block)
+        {
+            dest_buffer.next_block = dest_block_count + 1;
+            WriteLOFBlock(&destination_file, dest_block_count, &dest_buffer);
+            dest_block_count++;
+            AllocateLOFBlock(&dest_buffer);
+            position = 1;
+        }
+
+        dest_buffer.records[position-1] = cp_students[k];
+        dest_buffer.nb_records++;
+        position++;
+
+        if((k+1) % 100 == 0)
+        {
+            printf("      Writing progress: %d/%d CP students\n", k+1, cp_count);
+        }
+    }
+
+    if(dest_buffer.nb_records > 0)
+    {
+        dest_buffer.next_block = 0;
+        WriteLOFBlock(&destination_file, dest_block_count, &dest_buffer);
+    }
+
+    SetLOFHeader(&destination_file, 2, cp_count);
+    SetLOFHeader(&destination_file, 3, dest_block_count);
+    SetLOFHeader(&destination_file, 1, 1);
+
+    CloseLOFFile(&destination_file);
+
+    load_factor = (float)cp_count / (dest_block_count * MAX) * 100.0f;
+
+    int full_blocks = (cp_count / target_records_per_block);
+    int last_block_records = cp_count % target_records_per_block;
+
+    if(last_block_records == 0 && cp_count > 0)
+    {
+        full_blocks = dest_block_count;
+        last_block_records = target_records_per_block;
+    }
+
+    printf("\n");
+    PrintLine(80);
+    printf("  [+] CP LOF file created successfully!\n");
+    printf("      File Type         : LOF (Linked Ordered File)\n");
+    printf("      Total CP Students : %d (sorted by ID)\n", cp_count);
+    printf("      Blocks Used       : %d (numbered 1-%d)\n", dest_block_count, dest_block_count);
+    printf("      Distribution      :\n");
+    if(full_blocks > 0)
+        printf("        - Blocks 1-%d: %d records each (75.00%%)\n", full_blocks, target_records_per_block);
+    if(last_block_records > 0 && last_block_records < target_records_per_block && dest_block_count > full_blocks)
+        printf("        - Block %d: %d records (%.2f%%)\n",
+               dest_block_count, last_block_records,
+               (float)last_block_records / MAX * 100.0f);
     printf("\n  [COST BREAKDOWN]\n");
     printf("      Read blocks  : %d\n", N_IO_READ);
     printf("      Write blocks : %d\n", N_IO_WRITE);
     printf("      Total C5     : %d\n", N_IO_READ + N_IO_WRITE);
+    PrintLine(80);
     Pause();
 }
 
-/********************** DISPLAY FUNCTIONS *****************************/
+/* ============= DISPLAY FUNCTIONS  ============= */
 
-void DisplayFileHeader(char filename[30])
+void DisplayFileHeader()
 {
     ShowHeader();
-    TLNOF file;
+    int choice;
+    char filename[30];
+    char file_type[10];
 
-    OpenFile(&file, filename, 'a');
-    if(file.file != NULL)
+    printf("  DISPLAY FILE HEADER\n");
+    PrintLine(80);
+    printf("\n  Select file:\n");
+    printf("    1. STUDENTS_ESI.BIN (LNOF)\n");
+    printf("    2. STUDENTS_CP.BIN  (LOF)\n");
+    printf("  Choice: ");
+    scanf("%d", &choice);
+
+    if(choice == 1)
     {
-        printf("  FILE HEADER: %s\n", filename);
-        PrintLine(80);
-        printf("  First Block     : %d\n", GetHeader(&file, 1));
-        printf("  Active Records  : %d\n", GetHeader(&file, 2));
-        printf("  Last Block      : %d\n", GetHeader(&file, 3));
-        PrintLine(80);
+        strcpy(filename, MainFileName);
+        strcpy(file_type, "LNOF");
     }
-    if(file.header) CloseFile(&file);
+    else if(choice == 2)
+    {
+        strcpy(filename, CPFileName);
+        strcpy(file_type, "LOF");
+    }
+    else
+    {
+        printf("  [!] Invalid choice.\n");
+        Pause();
+        return;
+    }
+
+    if(choice == 1)
+    {
+        TLNOF file;
+        OpenFile(&file, filename, 'a');
+        if(file.file != NULL)
+        {
+            printf("\n  FILE HEADER: %s (%s)\n", filename, file_type);
+            PrintLine(80);
+            printf("  First Block    : %d\n", GetHeader(&file, 1));
+            printf("  Active Records : %d\n", GetHeader(&file, 2));
+            printf("  Last Block     : %d\n", GetHeader(&file, 3));
+            PrintLine(80);
+            CloseFile(&file);
+        }
+    }
+    else
+    {
+        TLOF file;
+        OpenLOFFile(&file, filename, 'a');
+        if(file.file != NULL)
+        {
+            printf("\n  FILE HEADER: %s (%s)\n", filename, file_type);
+            PrintLine(80);
+            printf("  First Block    : %d\n", GetLOFHeader(&file, 1));
+            printf("  Active Records : %d\n", GetLOFHeader(&file, 2));
+            printf("  Last Block     : %d\n", GetLOFHeader(&file, 3));
+            PrintLine(80);
+            CloseLOFFile(&file);
+        }
+    }
+
     Pause();
 }
 
-void DisplaySpecificBlock(char filename[30])
+void DisplaySpecificBlock()
 {
     ShowHeader();
-    TLNOF file;
-    TBlock buffer;
-    int block_number, i, count;
+    int choice, block_number, i, count;
+    char filename[30];
+    char file_type[10];
     char fullname[50];
 
     printf("  DISPLAY SPECIFIC BLOCK\n");
     PrintLine(80);
-    printf("\n  Block number: ");
-    scanf("%d", &block_number);
+    printf("\n  Select file:\n");
+    printf("    1. STUDENTS_ESI.BIN (LNOF)\n");
+    printf("    2. STUDENTS_CP.BIN  (LOF)\n");
+    printf("  Choice: ");
+    scanf("%d", &choice);
 
-    OpenFile(&file, filename, 'a');
-    if(file.file == NULL)
+    if(choice == 1)
     {
-        free(file.header);
+        strcpy(filename, MainFileName);
+        strcpy(file_type, "LNOF");
+    }
+    else if(choice == 2)
+    {
+        strcpy(filename, CPFileName);
+        strcpy(file_type, "LOF");
+    }
+    else
+    {
+        printf("  [!] Invalid choice.\n");
         Pause();
         return;
     }
 
-    ReadBlock(&file, block_number, &buffer);
+    printf("  Block number: ");
+    scanf("%d", &block_number);
 
-    printf("\n  BLOCK %d (Records: %d, Next: %d)\n", block_number, buffer.nb_records, buffer.next_block);
-    PrintLine(80);
-
-    count = 0;
-    for(i=1; i<=buffer.nb_records; i++)
+    if(choice == 1)
     {
-        if(buffer.records[i-1].deleted == 0)
+        TLNOF file;
+        TBlock buffer;
+
+        OpenFile(&file, filename, 'a');
+        if(file.file == NULL)
         {
-            sprintf(fullname, "%s %s", buffer.records[i-1].Family_Name, buffer.records[i-1].First_Name);
-            printf("  [%2d] ID:%-6d | %s\n", i, buffer.records[i-1].Student_ID, fullname);
-            count++;
+            free(file.header);
+            Pause();
+            return;
         }
+
+        ReadBlock(&file, block_number, &buffer);
+
+        printf("\n  FILE: %s (%s)\n", filename, file_type);
+        printf("  BLOCK #%d (Records: %d, Next: %d)\n", block_number, buffer.nb_records, buffer.next_block);
+        PrintLine(80);
+
+        count = 0;
+        for(i=0; i<buffer.nb_records; i++)
+        {
+            if(buffer.records[i].deleted == 0)
+            {
+                sprintf(fullname, "%s %s", buffer.records[i].Family_Name, buffer.records[i].First_Name);
+                printf("  %2d. ID=%-6d  %s\n", i+1, buffer.records[i].Student_ID, fullname);
+                count++;
+            }
+        }
+        if(count == 0)
+            printf("  [Empty]\n");
+
+        PrintLine(80);
+        CloseFile(&file);
+    }
+    else
+    {
+        TLOF file;
+        TLOFBlock buffer;
+
+        OpenLOFFile(&file, filename, 'a');
+        if(file.file == NULL)
+        {
+            free(file.header);
+            Pause();
+            return;
+        }
+
+        ReadLOFBlock(&file, block_number, &buffer);
+
+        printf("\n  FILE: %s (%s - SORTED BY ID)\n", filename, file_type);
+        printf("  BLOCK #%d (Records: %d, Next: %d)\n", block_number, buffer.nb_records, buffer.next_block);
+        PrintLine(80);
+
+        count = 0;
+        for(i=0; i<buffer.nb_records; i++)
+        {
+            if(buffer.records[i].deleted == 0)
+            {
+                sprintf(fullname, "%s %s", buffer.records[i].Family_Name, buffer.records[i].First_Name);
+                printf("  %2d. ID=%-6d  %s\n", i+1, buffer.records[i].Student_ID, fullname);
+                count++;
+            }
+        }
+        if(count == 0)
+            printf("  [Empty]\n");
+
+        PrintLine(80);
+        CloseLOFFile(&file);
     }
 
-    if(count == 0) printf("  (Empty)\n");
-
-    PrintLine(80);
-    CloseFile(&file);
     Pause();
 }
 
-void DisplayAllRecords(char filename[30])
+void DisplayAllRecords()
 {
     ShowHeader();
-    TLNOF file;
-    TBlock buffer;
-    int i, j, block_record_count, total_displayed = 0;
-    int total_blocks;
+    int choice, i, j, block_record_count, total_displayed = 0;
+    int current_block, block_count = 0;
+    char filename[30];
+    char file_type[10];
     char fullname[50];
+    char ch;
 
-    OpenFile(&file, filename, 'a');
-    if(file.file == NULL)
+    printf("  DISPLAY ALL RECORDS (BLOCK BY BLOCK)\n");
+    PrintLine(80);
+    printf("\n  Select file:\n");
+    printf("    1. STUDENTS_ESI.BIN (LNOF)\n");
+    printf("    2. STUDENTS_CP.BIN  (LOF)\n");
+    printf("  Choice: ");
+    scanf("%d", &choice);
+
+    if(choice == 1)
     {
-        free(file.header);
+        strcpy(filename, MainFileName);
+        strcpy(file_type, "LNOF");
+    }
+    else if(choice == 2)
+    {
+        strcpy(filename, CPFileName);
+        strcpy(file_type, "LOF");
+    }
+    else
+    {
+        printf("  [!] Invalid choice.\n");
         Pause();
         return;
     }
 
-    total_blocks = GetHeader(&file, 3);
-
-    printf("  ALL RECORDS (Block by Block)\n");
-    printf("  Total Blocks in file: %d\n", total_blocks);
+    printf("\n  File: %s (%s)\n", filename, file_type);
+    if(choice == 2)
+        printf("  Note: Records are SORTED BY STUDENT ID (LOF property)\n");
     printf("  Press ENTER after each block to continue...\n\n");
 
-    for(i = 1; i <= total_blocks; i++)
+    if(choice == 1)
     {
-        ReadBlock(&file, i, &buffer);
+        TLNOF file;
+        TBlock buffer;
 
-        PrintLine(140);
-        printf("  BLOCK %d/%d | Records: %d | Next: %d\n", i, total_blocks, buffer.nb_records, buffer.next_block);
-        PrintLine(140);
-        printf("%-6s | %-30s | %-10s | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
-               "ID","Name","Birth","Wilaya","Gender","Blood","Year","Speciality","UC");
-        PrintLine(140);
-
-        block_record_count = 0;
-        for(j=0; j<buffer.nb_records; j++)
+        OpenFile(&file, filename, 'a');
+        if(file.file == NULL)
         {
-            if(buffer.records[j].deleted == 0)
-            {
-                TStudent *student = &buffer.records[j];
-                sprintf(fullname, "%s %s", student->Family_Name, student->First_Name);
+            free(file.header);
+            Pause();
+            return;
+        }
 
-                printf("%-6d | %-30s | %02d/%02d/%d | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
-                       student->Student_ID,
-                       fullname,
-                       student->Day_Birth, student->Month_Birth, student->Year_Birth,
-                       student->Wilaya_Name,
-                       (student->Gender==2)?"Female":"Male",
-                       student->Blood_Type,
-                       student->Year_Study,
-                       student->Speciality,
-                       (student->Resident_UC==1)?"Yes":"No");
-                block_record_count++;
-                total_displayed++;
+        current_block = GetHeader(&file, 1);
+
+        while(current_block != 0)
+        {
+            ReadBlock(&file, current_block, &buffer);
+            block_count++;
+
+            PrintLine(140);
+            printf("BLOCK #%d (Records: %d, Next: %d)\n", current_block, buffer.nb_records, buffer.next_block);
+            PrintLine(140);
+            printf("%-6s | %-30s | %-10s | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
+                   "ID","Name","Birth","Wilaya","Gender","Blood","Year","Speciality","UC");
+            PrintLine(140);
+
+            block_record_count = 0;
+            for(j=0; j<buffer.nb_records; j++)
+            {
+                if(buffer.records[j].deleted == 0)
+                {
+                    TStudent *student = &buffer.records[j];
+                    sprintf(fullname, "%s %s", student->Family_Name, student->First_Name);
+                    printf("%-6d | %-30s | %02d/%02d/%d | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
+                           student->Student_ID, fullname,
+                           student->Day_Birth, student->Month_Birth, student->Year_Birth,
+                           student->Wilaya_Name,
+                           (student->Gender==2)?"Female":"Male",
+                           student->Blood_Type,
+                           student->Year_Study,
+                           student->Speciality,
+                           (student->Resident_UC==1)?"Yes":"No");
+                    block_record_count++;
+                    total_displayed++;
+                }
+            }
+
+            if(block_record_count == 0)
+                printf("  [No active records]\n");
+
+            PrintLine(140);
+            printf("Block #%d: %d records | Total displayed so far: %d\n",
+                   current_block, block_record_count, total_displayed);
+            PrintLine(140);
+
+            current_block = buffer.next_block;
+
+            if(current_block != 0)
+            {
+                printf("\nPress ENTER to view next block...");
+                while((ch = getchar()) != '\n' && ch != EOF);
+                getchar();
+                printf("\n");
             }
         }
 
-        if(block_record_count == 0)
-            printf("  (No active records)\n");
+        CloseFile(&file);
+    }
+    else
+    {
+        TLOF file;
+        TLOFBlock buffer;
 
-        PrintLine(140);
-        printf("  Block %d: %d records | Total displayed so far: %d\n", i, block_record_count, total_displayed);
-        PrintLine(140);
-
-        if(i < total_blocks)
+        OpenLOFFile(&file, filename, 'a');
+        if(file.file == NULL)
         {
-            printf("\n  Press ENTER to view next block...");
-            char ch;
-            while((ch = getchar()) != '\n' && ch != EOF);
-            getchar();
-            printf("\n");
+            free(file.header);
+            Pause();
+            return;
         }
+
+        current_block = GetLOFHeader(&file, 1);
+
+        while(current_block != 0)
+        {
+            ReadLOFBlock(&file, current_block, &buffer);
+            block_count++;
+
+            PrintLine(140);
+            printf("BLOCK #%d (Records: %d, Next: %d) [LOF - SORTED BY ID]\n", current_block, buffer.nb_records, buffer.next_block);
+            PrintLine(140);
+            printf("%-6s | %-30s | %-10s | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
+                   "ID","Name","Birth","Wilaya","Gender","Blood","Year","Speciality","UC");
+            PrintLine(140);
+
+            block_record_count = 0;
+            for(j=0; j<buffer.nb_records; j++)
+            {
+                if(buffer.records[j].deleted == 0)
+                {
+                    TStudent *student = &buffer.records[j];
+                    sprintf(fullname, "%s %s", student->Family_Name, student->First_Name);
+                    printf("%-6d | %-30s | %02d/%02d/%d | %-16s | %-6s | %-4s | %-4s | %-22s | %-3s\n",
+                           student->Student_ID, fullname,
+                           student->Day_Birth, student->Month_Birth, student->Year_Birth,
+                           student->Wilaya_Name,
+                           (student->Gender==2)?"Female":"Male",
+                           student->Blood_Type,
+                           student->Year_Study,
+                           student->Speciality,
+                           (student->Resident_UC==1)?"Yes":"No");
+                    block_record_count++;
+                    total_displayed++;
+                }
+            }
+
+            if(block_record_count == 0)
+                printf("  [No active records]\n");
+
+            PrintLine(140);
+            printf("Block #%d: %d records | Total displayed so far: %d\n",
+                   current_block, block_record_count, total_displayed);
+            PrintLine(140);
+
+            current_block = buffer.next_block;
+
+            if(current_block != 0)
+            {
+                printf("\nPress ENTER to view next block...");
+                while((ch = getchar()) != '\n' && ch != EOF);
+                getchar();
+                printf("\n");
+            }
+        }
+
+        CloseLOFFile(&file);
     }
 
     printf("\n");
     PrintLine(140);
-    printf("  === END OF FILE ===\n");
-    printf("  Total Active Records Displayed: %d\n", total_displayed);
-    printf("  Total Blocks Read: %d\n", total_blocks);
+    printf("END OF FILE\n");
+    printf("Total Active Records Displayed: %d\n", total_displayed);
+    printf("Total Blocks Read: %d\n", block_count);
     PrintLine(140);
 
-    CloseFile(&file);
     Pause();
 }
 
-/***************************** MENU *********************************/
+/* ============= MENU ============= */
 
 void ShowMainMenu()
 {
@@ -1530,31 +1992,32 @@ void ShowMainMenu()
     do
     {
         ShowHeader();
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |                          MAIN MENU                                    |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |  FILE OPERATIONS                                                      |\n");
-        printf("  |    1. Create & Initial Load           2. Save Index                   |\n");
-        printf("  |    3. Load Index                                                      |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |  STUDENT OPERATIONS                                                   |\n");
-        printf("  |    4. Search Student                  5. Insert Student               |\n");
-        printf("  |    6. Delete Student (Physical)       7. Modify First Name            |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |  QUERIES                                                              |\n");
-        printf("  |    8. Blood Type & Resident           9. By Speciality                |\n");
-        printf("  |   10. Under 20 Years Old             11. By Year of Study             |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |  ADVANCED                                                             |\n");
-        printf("  |   12. Create CP File (1CP+2CP)                                        |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |  DISPLAY                                                              |\n");
-        printf("  |   13. File Header                    14. Specific Block               |\n");
-        printf("  |   15. All Records (Block by Block)                                    |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("  |    0. Exit                                                            |\n");
-        printf("  +-----------------------------------------------------------------------+\n");
-        printf("\n  Enter your choice: ");
+
+        printf("-----------------------------------------------------------------------\n");
+        printf("                              MAIN MENU\n");
+        printf("-----------------------------------------------------------------------\n\n");
+        printf("  FILE OPERATIONS\n");
+        printf("    1. Create & Initial Load        2. Save Index\n");
+        printf("    3. Load Index\n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("  STUDENT OPERATIONS\n");
+        printf("    4. Search Student                 5. Insert Student\n");
+        printf("    6. Delete Student                 7. Modify First Name\n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("  QUERIES\n");
+        printf("    8. Blood Type & Resident          9. By Speciality\n");
+        printf("   10. Under 20 Years Old            11. By Year of Study\n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("  ADVANCED\n");
+        printf("   12. Create CP File \n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("  DISPLAY \n");
+        printf("   13. File Header                   14. Specific Block\n");
+        printf("   15. All Records \n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("    0. Exit\n");
+        printf("-----------------------------------------------------------------------\n");
+        printf("Enter your choice: ");
         scanf("%d", &choice);
 
         switch(choice)
@@ -1571,12 +2034,12 @@ void ShowMainMenu()
             case 10: QueryUnder20YearsOld(); break;
             case 11: QueryYearOfStudy(); break;
             case 12: CreateCPFile(); break;
-            case 13: DisplayFileHeader(MainFileName); break;
-            case 14: DisplaySpecificBlock(MainFileName); break;
-            case 15: DisplayAllRecords(MainFileName); break;
+            case 13: DisplayFileHeader(); break;
+            case 14: DisplaySpecificBlock(); break;
+            case 15: DisplayAllRecords(); break;
             case 0:
                 ShowHeader();
-                printf("  Thank you for using ESI Students Management System!\n");
+                printf("\n\n  Thank you for using ESI Students Management System!\n");
                 printf("  Lab FSDS - SOLTANI Okba & ZERARI Tarek\n\n");
                 break;
             default:
@@ -1588,7 +2051,7 @@ void ShowMainMenu()
     } while(choice != 0);
 }
 
-/********************************* MAIN ***********************************/
+/* ============= MAIN ============= */
 
 int main()
 {
@@ -1597,22 +2060,17 @@ int main()
 
     ClearScreen();
     PrintLine(90);
+    printf("\n\n");
+    printf("                  ESI STUDENTS MANAGEMENT SYSTEM \n");
     printf("\n");
-    printf("         ======================================================================\n");
-    printf("         ||                                                                  ||\n");
-    printf("         ||          ESI STUDENTS MANAGEMENT SYSTEM - LNOF                  ||\n");
-    printf("         ||                                                                  ||\n");
-    printf("         ||          Linked Non-Ordered File Implementation                 ||\n");
-    printf("         ||                                                                  ||\n");
-    printf("         ======================================================================\n");
-    printf("\n");
+    printf("\n\n");
     PrintLine(90);
-    printf("\n  Lab: File Structures and Data Systems (FSDS)\n");
+    printf("  Lab: File Structures and Data Systems (FSDS)\n");
     printf("  Presented by: SOLTANI Okba & ZERARI Tarek\n");
-    printf("  Year: 2025-2026\n\n");
+    printf("  Year: 2025-2026\n");
     PrintLine(90);
-    printf("\n  Enter names filename [default: NAMES.txt]: ");
 
+    printf("\nEnter names filename [default: NAMES.txt]: ");
     char temp_filename[64];
     if(scanf("%63s", temp_filename) == 1 && strlen(temp_filename) > 0 && strcmp(temp_filename, "default") != 0)
         strcpy(NamesFileName, temp_filename);
