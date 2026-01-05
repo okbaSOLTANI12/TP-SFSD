@@ -1351,7 +1351,7 @@ void QueryUnder20YearsOld()
             if(buffer.records[j].deleted == 0)
             {
                 int age = current_year - buffer.records[j].Year_Birth;
-                if(age < 20 && buffer.records[j].Year_Birth >= year1 && buffer.records[j].Year_Birth <= year2)
+                if(age < 21 && buffer.records[j].Year_Birth >= year1 && buffer.records[j].Year_Birth <= year2)
                 {
                     sprintf(fullname, "%s %s", buffer.records[j].Family_Name, buffer.records[j].First_Name);
                     printf("%-6d | %-30s | %02d/%02d/%d | %-3d | %-6s | %-4s | %-4s | %-16s\n",
@@ -1479,7 +1479,6 @@ void CreateCPFile()
         return;
     }
 
-    printf("\n  [*] Step 1: Extracting 1CP and 2CP students...\n");
 
     cp_count = 0;
     current_block = GetHeader(&source_file, 1);
@@ -1513,7 +1512,6 @@ void CreateCPFile()
         return;
     }
 
-    printf("\n  [*] Step 2: Sorting by Student ID (LOF requirement)...\n");
 
     for(i = 0; i < cp_count - 1; i++)
     {
@@ -1532,7 +1530,6 @@ void CreateCPFile()
 
     printf("      Sorted successfully!\n");
 
-    printf("\n  [*] Step 3: Creating LOF file with 75%% load factor...\n");
 
     OpenLOFFile(&destination_file, CPFileName, 'n');
     if(destination_file.file == NULL)
